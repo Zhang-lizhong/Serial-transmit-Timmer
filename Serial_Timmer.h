@@ -10,7 +10,36 @@
 using	namespace std;
 
 
+/*
 
+Edition 1.2
+
+"Timmer" func might make some mistake with "Sleep" func
+
+Edition 1.3
+
+support string to be the parameters, and support the COM>10
+
+Edition 1.4
+
+add clone timmer func to allows timmer runs independently
+add individual func to solve the cose of mutex.
+
+Edition 1.5
+
+mutex synchronize has been optimized
+
+
+Edition 1.6
+reduce mutex, mult-thread cost of timmer.
+Serial mult-thread read&write protect
+
+Edition 1.7
+some small change.
+
+Edition 1.8
+some small change.
+*/
 
 class Serial
 {
@@ -25,7 +54,7 @@ public:
 	Serial()
 	{}
 
-	Serial(string HandName, int SerialSpeed)
+	Serial(string HandName, int SerialSpeed=115200,int STOP_BIT=1,int Parity=NOPARITY)
 	{
 		string H_Name = "\\\\.\\";
 		string N4 = H_Name + HandName;
@@ -46,10 +75,10 @@ public:
 			//return 0;
 		}
 
-		else cout << "打开"<<HandName<<"成功!" << endl;
+		else cout << "打开COM成功!" << endl;
 
 		SetupComm(STM32, 1024, 1024);//输入缓冲区和输出缓冲区的大小都是1024
-		COMMTIMEOUTS TimeOuts;//设定读超时
+		COMMTIMEOUTS TimeOuts;//设定读超时(ms)
 		TimeOuts.ReadIntervalTimeout = 2;
 		TimeOuts.ReadTotalTimeoutMultiplier = 2;
 		TimeOuts.ReadTotalTimeoutConstant = 2;//设定写超时
@@ -60,15 +89,15 @@ public:
 		GetCommState(STM32, &dcb);
 		dcb.BaudRate = SerialSpeed;//波特率
 		dcb.ByteSize = 8;//每个字节有8位
-		dcb.Parity = NOPARITY;//无奇偶校验位
-		dcb.StopBits = 0;//两个停止位
+		dcb.Parity = Parity;//奇偶校验位
+		dcb.StopBits = STOP_BIT;//停止位  
 		SetCommState(STM32, &dcb);
 		PurgeComm(STM32, PURGE_TXCLEAR | PURGE_RXCLEAR);//清理串口缓存，但是这里暂时不用
 		//return 1;
 	}
 
 
-	bool Serial_Init(string HandName, int SerialSpeed)
+	bool Serial_Init(string HandName, int SerialSpeed = 115200, int STOP_BIT = 1, int Parity = NOPARITY)
 	{
 		string H_Name = "\\\\.\\";
 		string N4 = H_Name + HandName;
@@ -89,29 +118,30 @@ public:
 			return 0;
 		}
 
-		else cout << "打开"<<HandName<<"成功!" << endl;
+		else cout << "打开COM成功!" << endl;
 
 		SetupComm(STM32, 1024, 1024);//输入缓冲区和输出缓冲区的大小都是1024
 		COMMTIMEOUTS TimeOuts;//设定读超时
 		TimeOuts.ReadIntervalTimeout = 2;
 		TimeOuts.ReadTotalTimeoutMultiplier = 2;
-		TimeOuts.ReadTotalTimeoutConstant = 2;//设定写超时
-		TimeOuts.WriteTotalTimeoutMultiplier = 2;
+		TimeOuts.ReadTotalTimeoutConstant = 6;
+
+		TimeOuts.WriteTotalTimeoutMultiplier = 2;//设定写超时
 		TimeOuts.WriteTotalTimeoutConstant = 2;
 		SetCommTimeouts(STM32, &TimeOuts);//设置超时
 		DCB dcb;
 		GetCommState(STM32, &dcb);
 		dcb.BaudRate = SerialSpeed;//波特率
 		dcb.ByteSize = 8;//每个字节有8位
-		dcb.Parity = NOPARITY;//无奇偶校验位
-		dcb.StopBits = 0;//两个停止位
+		dcb.Parity = Parity;//奇偶校验位
+		dcb.StopBits = STOP_BIT;//停止位  
 		SetCommState(STM32, &dcb);
-		PurgeComm(STM32, PURGE_TXCLEAR | PURGE_RXCLEAR);
+		PurgeComm(STM32, PURGE_TXCLEAR | PURGE_RXCLEAR);//清理串口缓存
 		return 1;
 	}
 
-	DWORD wCount = 0;//实际写的字节数
-	DWORD RCount = 0;//实际读取字节数
+	
+	
 
 	bool Write(LPCVOID a, DWORD NumWrite)
 	{
@@ -122,16 +152,16 @@ public:
 
 	bool Protect_Write(LPCVOID a, DWORD NumWrite)
 	{
-		lock_guard<mutex> lck(write_L);//冗余保护
+		lock_guard<mutex> lck(write_L);//保护
 		bool b = WriteFile(STM32, a, NumWrite, &wCount, NULL);
-		//PurgeComm(STM32, PURGE_TXCLEAR);//清理串口缓存，但是这里暂时不用
+		//PurgeComm(STM32, PURGE_TXCLEAR);//清理串口缓存，可选
 		return b;
 	}
 
-	bool Write(LPCVOID a, DWORD NumWrite, DWORD* Count)
+	bool Write(LPCVOID a, DWORD NumWrite, DWORD& Count)
 	{
-		bool b = WriteFile(STM32, a, NumWrite, Count, NULL);
-		//PurgeComm(STM32, PURGE_TXCLEAR);
+		bool b = WriteFile(STM32, a, NumWrite, &Count, NULL);
+		//PurgeComm(STM32, PURGE_TXCLEAR);//清理串口缓存，可选
 		return b;
 	}
 
@@ -141,20 +171,20 @@ public:
 	bool Read(LPVOID a, DWORD NumRead)
 	{
 		bool b = ReadFile(STM32, a, NumRead, &RCount, NULL);
-		//PurgeComm(STM32, PURGE_RXCLEAR);
+		//PurgeComm(STM32, PURGE_TXCLEAR);//清理串口缓存，可选
 		return b;
 	}
 	bool Protect_Read(LPVOID a, DWORD NumRead)
 	{
-		lock_guard<mutex> lck(read_L);//冗余保护
+		lock_guard<mutex> lck(read_L);//保护
 		bool b = ReadFile(STM32, a, NumRead, &RCount, NULL);
 		//PurgeComm(STM32, PURGE_RXCLEAR);
 		return b;
 	}
-	bool Read(LPVOID a, DWORD NumRead, DWORD* Count)
+	bool Read(LPVOID a, DWORD NumRead, DWORD& Count)
 	{
-		bool b = ReadFile(STM32, a, NumRead, Count, NULL);
-		//PurgeComm(STM32, PURGE_RXCLEAR);
+		bool b = ReadFile(STM32, a, NumRead, &Count, NULL);
+		//PurgeComm(STM32, PURGE_TXCLEAR);//清理串口缓存，可选
 		return b;
 	}
 
@@ -162,10 +192,18 @@ public:
 	{
 		return PurgeComm(STM32, PURGE_TXCLEAR | PURGE_RXCLEAR);
 	}
+
+	bool Close()
+	{
+		return CloseHandle(STM32);
+	}
 private:
 	HANDLE STM32;
 	mutex read_L;
 	mutex write_L;
+
+	DWORD wCount = 0;//实际写的字节数(不用)
+	DWORD RCount = 0;//实际读取字节数(不用)
 };
 class timmer_inS
 {
@@ -207,7 +245,6 @@ public:
 		LARGE_INTEGER L_now;//
 		QueryPerformanceCounter(&L_now);//获取时间
 		return (double)(L_now.QuadPart - Time_Start) / dfFreq;// 获得对应的时间值，单位为秒
-
 	}
 
 
