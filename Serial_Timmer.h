@@ -2,13 +2,11 @@
 
 
 #include<iostream>
-#include <windows.h>
 #include "Ctime"
 #include <mutex>
 #include <thread>
 
-using	namespace std;
-
+#define windows//this will indicate which platform be compiled
 
 /*
 
@@ -39,7 +37,16 @@ some small change.
 
 Edition 1.8
 some small change.
+
+Edition 2.1
+add difference of linux and windows
 */
+
+
+
+#ifdef windows
+#include <windows.h>
+using	namespace std;
 
 class Serial
 {
@@ -253,3 +260,8 @@ public:
 
 };
 
+#endif
+
+#ifdef linux
+
+#endif
