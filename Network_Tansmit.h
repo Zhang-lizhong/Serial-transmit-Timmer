@@ -226,30 +226,3 @@ namespace NETWORK
 
 
 
-	typedef int (*Server_Call)(N_Serial_Server* server, void* data);
-
-
-	typedef int (*Client_Call)(N_Serial_Client* client, void* data);
-
-	
-
-	/*use a new thread to excute, if -1 return will exit the thread*/
-	void Server_thread(N_Serial_Server* server, Server_Call func, void* userdata)
-	{
-		cout << "start listen....\n";
-		while (func(server, userdata) != -1);
-		cout << "stop listen....\n";
-		return;
-	}
-
-	/*use a new thread to excute, if -1 return will exit the thread*/
-	void Client_thread(N_Serial_Client* client, Client_Call func, void* userdata)
-	{
-		cout << "start listen....\n";
-		while (func(client, userdata) != -1);
-		cout << "stop listen....\n";
-		return;
-	}
-
-
-}
