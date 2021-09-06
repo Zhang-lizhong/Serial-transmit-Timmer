@@ -224,5 +224,5 @@ namespace NETWORK
 		mutex S_lock;
 	};
 
-
+}
 
